@@ -1,5 +1,5 @@
 """
-This file runs the main training/val loop
+This file runs the main training/val loop (corrected)
 """
 import os
 import sys
@@ -45,19 +45,23 @@ import torch.multiprocessing as mp
 def train():
     opts = TrainOptions().parse()
 
+    # Initialize distributed only if multiple GPUs are available
     if torch.cuda.device_count() > 1:
         dist.init_process_group(backend="nccl", init_method="env://")
         local_rank = get_rank()
         torch.cuda.set_device(local_rank)
         device = torch.device("cuda", local_rank)
     else:
-        print("⚠️ Single GPU detected, running without torch.distributed.")
+        # single GPU or CPU
         local_rank = 0
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        if torch.cuda.device_count() < 2:
+            print("⚠️ Single GPU detected, running without torch.distributed.")
 
     opts.device = device
 
-    if local_rank == 0 or torch.cuda.device_count() < 2:
+    # Setup directories & logger only on main process
+    if local_rank == 0:
         print("opts.exp_dir:", opts.exp_dir)
         if os.path.exists(opts.exp_dir):
             raise Exception('Oops... {} already exists'.format(opts.exp_dir))
@@ -77,6 +81,10 @@ def train():
         best_val_loss = None
         if opts.save_interval is None:
             opts.save_interval = opts.max_steps
+    else:
+        logger = None
+        checkpoint_dir = None
+        best_val_loss = None
 
     # Initialize network
     net = AGE(opts).to(device)
@@ -90,6 +98,7 @@ def train():
     if net.latent_avg is None:
         net.latent_avg = net.decoder.mean_latent(int(1e5))[0].detach()
 
+    # Wrap with DDP only if multiple GPUs
     if torch.cuda.device_count() > 1:
         net = nn.parallel.DistributedDataParallel(
             net, device_ids=[local_rank], output_device=local_rank, find_unused_parameters=True
@@ -132,7 +141,7 @@ def train():
         target_transform=transforms_dict['transform_valid']
     )
 
-    if local_rank == 0 or torch.cuda.device_count() < 2:
+    if local_rank == 0:
         print(f"Number of training samples: {len(train_dataset)}")
         print(f"Number of valid samples: {len(valid_dataset)}")
 
@@ -154,14 +163,18 @@ def train():
         shuffle=(valid_sampler is None)
     )
 
-    # Initialize loss
+    # Initialize loss modules (on device) if needed
     lpips = LPIPS(net_type='vgg').to(device).eval() if opts.lpips_lambda > 0 else None
     sparse = sparse_loss.SparseLoss().to(device).eval() if opts.sparse_lambda > 0 else None
     orthogonal = orthogonal_loss.OrthogonalLoss(opts).to(device).eval() if opts.orthogonal_lambda > 0 else None
 
+    # Training loop
     global_step = 0
+    done = False
     net.train()
-    while global_step < opts.max_steps:
+
+    # Loop until we reach max steps. We break cleanly once condition met.
+    while not done:
         for batch_idx, batch in enumerate(train_dataloader):
             optimizer.zero_grad()
             x, y, av_codes = batch
@@ -170,11 +183,17 @@ def train():
             loss, loss_dict, id_logs = calc_loss(opts, outputs, y, orthogonal, sparse, lpips)
             loss.backward()
             optimizer.step()
+
+            # Important: increment immediately after optimizer.step()
+            global_step += 1
+
+            # Reduce losses across ranks (multi-GPU) if needed
             loss_dict = reduce_loss_dict(loss_dict)
 
-            # Logging
-            if local_rank == 0 or torch.cuda.device_count() < 2:
+            # Logging (only main rank)
+            if local_rank == 0:
                 if global_step % opts.image_interval == 0 or (global_step < 1000 and global_step % 25 == 0):
+                    # parse_and_log_images internally checks/get logger handling
                     parse_and_log_images(opts, logger, global_step, id_logs, x, y, outputs['y_hat'], title='images/train/faces')
                 if global_step % opts.board_interval == 0:
                     print_metrics(global_step, loss_dict, prefix='train')
@@ -182,28 +201,35 @@ def train():
 
             # Validation
             val_loss_dict = None
-            if global_step % opts.val_interval == 0 or global_step == opts.max_steps:
-                if local_rank == 0 or torch.cuda.device_count() < 2:
+            if (global_step % opts.val_interval == 0) or (global_step >= opts.max_steps):
+                if local_rank == 0:
                     val_loss_dict = validate(opts, net, orthogonal, sparse, lpips, valid_dataloader, device, global_step, logger)
                     if val_loss_dict and (best_val_loss is None or val_loss_dict['loss'] < best_val_loss):
                         best_val_loss = val_loss_dict['loss']
-                        checkpoint_me(net, opts, checkpoint_dir, best_val_loss, global_step, loss_dict, is_best=True)
+                        # pass scalar best_val_loss
+                        checkpoint_me(net, opts, checkpoint_dir, float(best_val_loss), global_step, loss_dict, is_best=True)
                 else:
+                    # other ranks still run validate but do not checkpoint
                     val_loss_dict = validate(opts, net, orthogonal, sparse, lpips, valid_dataloader, device, global_step)
 
-            if local_rank == 0 or torch.cuda.device_count() < 2:
-                if global_step % opts.save_interval == 0 or global_step == opts.max_steps:
-                    if val_loss_dict is not None:
-                        checkpoint_me(net, opts, checkpoint_dir, val_loss_dict, global_step, loss_dict, is_best=False)
-                    else:
-                        checkpoint_me(net, opts, checkpoint_dir, loss_dict, global_step, loss_dict, is_best=False)
+            # Checkpointing (main rank only)
+            if local_rank == 0 and ((global_step % opts.save_interval == 0) or (global_step >= opts.max_steps)):
+                if val_loss_dict is not None:
+                    # write scalar loss into timestamp
+                    checkpoint_me(net, opts, checkpoint_dir, float(val_loss_dict.get('loss', float(loss_dict.get('loss', 0.0)))), global_step, loss_dict, is_best=False)
+                else:
+                    checkpoint_me(net, opts, checkpoint_dir, float(loss_dict.get('loss', 0.0)), global_step, loss_dict, is_best=False)
 
-            if global_step == opts.max_steps:
-                if local_rank == 0 or torch.cuda.device_count() < 2:
+            # Final stop: when we've reached or exceeded max_steps, exit cleanly
+            if global_step >= opts.max_steps:
+                if local_rank == 0:
                     print('OMG, finished training!')
+                done = True
                 break
 
-            global_step += 1
+        # end for dataloader
+        if done:
+            break
 
 def validate(opts, net, orthogonal, sparse, lpips, valid_dataloader, device, global_step, logger=None):
     net.eval()
@@ -216,7 +242,7 @@ def validate(opts, net, orthogonal, sparse, lpips, valid_dataloader, device, glo
             loss, cur_loss_dict, id_logs = calc_loss(opts, outputs, y, orthogonal, sparse, lpips)
         agg_loss_dict.append(cur_loss_dict)
 
-        # Logging related - only on rank 0 or single GPU
+        # Logging related - only on main rank or single GPU
         if get_rank() == 0 or torch.cuda.device_count() < 2:
             parse_and_log_images(opts, logger, global_step, id_logs, x, y, outputs['y_hat'], title='images/valid/faces', subscript='{:04d}'.format(batch_idx))
 
@@ -228,7 +254,7 @@ def validate(opts, net, orthogonal, sparse, lpips, valid_dataloader, device, glo
     net.train()
     loss_dict = train_utils.aggregate_loss_dict(agg_loss_dict)
     loss_dict = reduce_loss_dict(loss_dict)
-    
+
     # Only log on rank 0 or single GPU
     if get_rank() == 0 or torch.cuda.device_count() < 2:
         log_metrics(logger, global_step, loss_dict, prefix='valid')
@@ -237,15 +263,19 @@ def validate(opts, net, orthogonal, sparse, lpips, valid_dataloader, device, glo
     return loss_dict
 
 def checkpoint_me(net, opts, checkpoint_dir, best_val_loss, global_step, loss_dict, is_best):
+    """
+    Save model and append a timestamp line into timestamp.txt.
+    best_val_loss should be a scalar (float) when provided for non-best checkpoints too.
+    """
     save_name = 'best_model.pt' if is_best else f'iteration_{global_step}.pt'
     save_dict = __get_save_dict(net, opts)
     checkpoint_path = os.path.join(checkpoint_dir, save_name)
     torch.save(save_dict, checkpoint_path)
     with open(os.path.join(checkpoint_dir, 'timestamp.txt'), 'a') as f:
         if is_best:
-            f.write(f'**Best**: Step - {global_step}, Loss - {best_val_loss} \n{loss_dict}\n')
+            f.write(f'**Best**: Iteration - {global_step}, Loss - {best_val_loss} \n{loss_dict}\n')
         else:
-            f.write(f'Step - {global_step}, \n{loss_dict}\n')
+            f.write(f'Iteration - {global_step}, Loss - {best_val_loss} \n{loss_dict}\n')
 
 def calc_loss(opts, outputs, y, orthogonal, sparse, lpips):
     loss_dict = {}
@@ -271,8 +301,18 @@ def calc_loss(opts, outputs, y, orthogonal, sparse, lpips):
     return loss, loss_dict, id_logs
 
 def log_metrics(logger, global_step, metrics_dict, prefix):
+    if logger is None:
+        return
     for key, value in metrics_dict.items():
-        logger.add_scalar(f'{prefix}/{key}', value, global_step)
+        # ensure we pass a scalar float to tensorboard
+        try:
+            scalar_value = float(value)
+        except Exception:
+            try:
+                scalar_value = float(value.item())
+            except Exception:
+                scalar_value = 0.0
+        logger.add_scalar(f'{prefix}/{key}', scalar_value, global_step)
 
 def print_metrics(global_step, metrics_dict, prefix):
     print(f'Metrics for {prefix}, step {global_step}')
@@ -307,20 +347,39 @@ def log_images(logger, global_step, name, im_data, subscript=None, log_latest=Fa
     plt.close(fig)
 
 def __get_save_dict(net, opts):
+    # Handle both single GPU and multi-GPU cases
+    if torch.cuda.device_count() > 1 and isinstance(net, nn.parallel.DistributedDataParallel):
+        # Multi-GPU: use net.module
+        state_dict = net.module.state_dict()
+        if opts.start_from_latent_avg:
+            latent_avg = net.module.latent_avg
+    else:
+        # Single GPU (or not DDP): use net directly
+        # net might be the module already
+        try:
+            state_dict = net.state_dict()
+        except Exception:
+            state_dict = net.module.state_dict()
+        if opts.start_from_latent_avg:
+            latent_avg = getattr(net, 'latent_avg', None)
+
     save_dict = {
-        'state_dict': net.state_dict(),
+        'state_dict': state_dict,
         'opts': vars(opts)
     }
-    # save the latent avg in state_dict for inference if truncation of w was used during training
-    if opts.start_from_latent_avg:
-        save_dict['latent_avg'] = net.module.latent_avg
+
+    # save the latent avg in save_dict for inference if truncation of w was used during training
+    if opts.start_from_latent_avg and 'latent_avg' in locals() and locals()['latent_avg'] is not None:
+        save_dict['latent_avg'] = locals()['latent_avg']
+
     return save_dict
 
 def reduce_loss_dict(loss_dict):
     # Only use distributed reduction if we're actually using multiple GPUs
     if torch.cuda.device_count() < 2:
-        return loss_dict
-    
+        # Convert tensors to python floats for consistent printing
+        return {k: (float(v) if hasattr(v, 'item') or isinstance(v, (int, float)) else v) for k, v in loss_dict.items()}
+
     world_size = dist.get_world_size()
 
     with torch.no_grad():
@@ -337,7 +396,11 @@ def reduce_loss_dict(loss_dict):
         if get_rank() == 0:
             losses /= world_size
 
-        reduced_losses = {k: float(v) for k, v in zip(keys, losses)}
+        # On non-zero ranks the reduced values are placeholders; only rank 0 will get correct averaged numbers
+        if get_rank() == 0:
+            reduced_losses = {k: float(v) for k, v in zip(keys, losses)}
+        else:
+            reduced_losses = {k: float(loss_dict[k]) if hasattr(loss_dict[k], 'item') else float(loss_dict[k]) for k in keys}
 
     return reduced_losses
 

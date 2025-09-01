@@ -1,4 +1,4 @@
 dataset_paths = {
-	'af_train': '/content/SAGE/datasets/animal_faces/animal_faces/train',
-	'af_valid': '/content/SAGE/datasets/animal_faces/animal_faces/valid',
+	'fl_train': '/content/SAGE/datasets/flowers/train',
+	'fl_valid': '/content/SAGE/datasets/flowers/valid',
 }
