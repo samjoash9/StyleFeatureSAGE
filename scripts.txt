@@ -1,0 +1,17 @@
+python tools/train.py ^
+  --encoder_type=Inverter ^
+  --dataset_type=af_encode ^
+  --exp_dir=C:\path\to\experiment\output ^
+  --workers=8 ^
+  --batch_size=8 ^
+  --valid_batch_size=8 ^
+  --valid_workers=8 ^
+  --val_interval=2500 ^
+  --save_interval=5000 ^
+  --start_from_latent_avg ^
+  --l2_lambda=1 ^
+  --sparse_lambda=0.005 ^
+  --orthogonal_lambda=0.0005 ^
+  --A_length=100 ^
+  --psp_checkpoint_path=C:\path\to\pretrained\pSp\checkpoint.pt ^
+  --class_embedding_path=C:\path\to\class\embeddings
