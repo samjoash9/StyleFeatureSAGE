@@ -103,6 +103,9 @@ class AGE(nn.Module):
 			encoder = psp_encoders.BackboneEncoderUsingLastLayerIntoW(50, 'ir_se', self.opts)
 		elif self.opts.encoder_type == 'BackboneEncoderUsingLastLayerIntoWPlus':
 			encoder = psp_encoders.BackboneEncoderUsingLastLayerIntoWPlus(50, 'ir_se', self.opts)
+		elif self.opts.encoder_type == 'Inverter':
+			# Use StyleFeatureEditor Inverter and wrap to return only latents
+			encoder = InverterWrapper(psp_encoders.Inverter(n_styles=self.opts.n_styles, opts=self.opts))
 		else:
 			raise Exception('{} is not a valid encoders'.format(self.opts.encoder_type))
 		return encoder
