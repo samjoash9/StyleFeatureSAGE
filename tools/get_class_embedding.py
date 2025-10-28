@@ -24,12 +24,19 @@ from models.age import AGE
 def run():
     test_opts = TestOptions().parse()
     ckpt = torch.load(test_opts.psp_checkpoint_path, map_location='cpu')
-    opts = ckpt['opts']
-    opts.update(vars(test_opts))
+    # Some checkpoints may not contain 'opts'. Fall back to CLI args when missing.
+    if 'opts' in ckpt:
+        opts = ckpt['opts']
+        opts.update(vars(test_opts))
+    else:
+        opts = vars(test_opts)
     if 'learn_in_w' not in opts:
         opts['learn_in_w'] = False
     if 'output_size' not in opts:
         opts['output_size'] = 1024
+    # Ensure encoder_type defaults to Inverter for class embedding extraction
+    if 'encoder_type' not in opts or opts['encoder_type'] is None:
+        opts['encoder_type'] = 'Inverter'
     opts = Namespace(**opts)
 
     net = AGE(opts)
