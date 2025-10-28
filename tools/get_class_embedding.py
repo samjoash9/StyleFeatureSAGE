@@ -34,6 +34,10 @@ def run():
         opts['learn_in_w'] = False
     if 'output_size' not in opts:
         opts['output_size'] = 1024
+    if 'label_nc' not in opts:
+        opts['label_nc'] = 0
+    if 'input_nc' not in opts:
+        opts['input_nc'] = 3
     # Ensure encoder_type defaults to Inverter for class embedding extraction
     if 'encoder_type' not in opts or opts['encoder_type'] is None:
         opts['encoder_type'] = 'Inverter'
