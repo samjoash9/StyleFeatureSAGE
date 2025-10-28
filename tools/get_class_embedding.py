@@ -37,11 +37,15 @@ def run():
     # Ensure encoder_type defaults to Inverter for class embedding extraction
     if 'encoder_type' not in opts or opts['encoder_type'] is None:
         opts['encoder_type'] = 'Inverter'
+    # Ensure device is set (AGE expects opts.device)
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    opts['device'] = device
     opts = Namespace(**opts)
 
     net = AGE(opts)
     net.eval()
-    net.cuda()
+    if torch.cuda.is_available():
+        net.cuda()
 
     print('Loading dataset for {}'.format(opts.dataset_type))
     dataset_args = data_configs.DATASETS[opts.dataset_type]
