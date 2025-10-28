@@ -4,8 +4,114 @@ import torch.nn.functional as F
 from torch import nn
 from torch.nn import Linear, Conv2d, BatchNorm2d, PReLU, Sequential, Module
 
-from models.encoders.helpers import get_blocks, Flatten, bottleneck_IR, bottleneck_IR_SE
+from models.encoders.helpers import get_blocks, Flatten, bottleneck_IR, bottleneck_IR_SE, _upsample_add
+from models.encoders.feature_resnet import iresnet50
 from models.stylegan2.model import EqualLinear
+
+
+class Inverter(nn.Module):
+    def __init__(self, n_styles=18, opts=None):
+        super(Inverter, self).__init__()
+        self.fs_backbone = FSLikeBackbone(opts=opts, n_styles=n_styles)
+        self.fuser = ContentLayerDeepFast(6, 1024, 512)
+
+
+class FSLikeBackbone(nn.Module):
+    def __init__(self, n_styles=18, opts=None):
+        super(FSLikeBackbone, self).__init__()
+
+        resnet50 = iresnet50()
+        if hasattr(opts, 'arcface_model_path') and opts.arcface_model_path is not None:
+            resnet50.load_state_dict(torch.load(opts.arcface_model_path))
+
+        self.conv = nn.Sequential(*list(resnet50.children())[:3])
+
+        # define layers
+        self.block_1 = list(resnet50.children())[3]  # 15-18
+        self.block_2 = list(resnet50.children())[4]  # 10-14
+        self.block_3 = list(resnet50.children())[5]  # 5-9
+        self.block_4 = list(resnet50.children())[6]  # 1-4
+
+        # replace stride in conv to increase predicted dimensionality
+        state = self.block_3.state_dict()
+        self.block_3[0].conv2 = torch.nn.Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+        self.block_3[0].downsample[0] = torch.nn.Conv2d(128, 256, kernel_size=(1, 1), stride=(1, 1), bias=False)
+        self.block_3.load_state_dict(state, strict=True)
+
+        self.content_layer = nn.Sequential(
+            nn.BatchNorm2d(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True),
+            nn.Conv2d(256, 512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False),
+            nn.BatchNorm2d(512, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True),
+            nn.PReLU(num_parameters=512),
+            nn.Conv2d(512, 512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False),
+            nn.BatchNorm2d(512, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        )
+
+        self.avg_pool = nn.AdaptiveAvgPool2d((3, 3))
+
+        self.styles = nn.ModuleList()
+        for i in range(n_styles):
+            self.styles.append(nn.Linear(960 * 9, 512))
+
+
+    def apply_head(self, x):
+        latents = []
+        for i in range(len(self.styles)):
+            latents.append(self.styles[i](x))
+        out = torch.stack(latents, dim=1)
+        return out
+
+
+    def forward(self, x):
+        features = []
+
+        x = self.conv(x)
+        x = self.block_1(x)
+        features.append(self.avg_pool(x))
+        x = self.block_2(x)
+        features.append(self.avg_pool(x))
+        x = self.block_3(x)
+        features.append(self.avg_pool(x))
+
+        content = self.content_layer(x)
+        x = self.block_4(x)
+        features.append(self.avg_pool(x))
+
+        x = torch.cat(features, dim=1)
+        x = x.view(x.size(0), -1)
+
+        return self.apply_head(x), content 
+
+
+class ContentLayerDeepFast(nn.Module):
+    def __init__(self, len=4, inp=1024, out=512):
+        super().__init__()
+        self.body = nn.ModuleList([])
+        self.conv = nn.Conv2d(inp, out, kernel_size=(1, 1), stride=(1, 1), padding=(0, 0))
+        for i in range(len - 1):
+            self.body.append(FeatureEncoderBlock(out, out))
+
+    def forward(self, x):
+        x = self.conv(x)
+        for i, block in enumerate(self.body):
+            x = x + block(x)
+        return x
+
+
+class FeatureEncoderBlock(nn.Module):
+    def __init__(self, inp=1024, out=512):
+        super().__init__()
+        self.body = nn.Sequential(
+                nn.BatchNorm2d(inp, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True),
+                nn.Conv2d(inp, out, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False),
+                nn.BatchNorm2d(out, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True),
+                nn.PReLU(num_parameters=out),
+                nn.Conv2d(out, out, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False),
+                nn.BatchNorm2d(out, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+            )
+
+    def forward(self, x):
+        return self.body(x)
 
 
 class GradualStyleBlock(Module):

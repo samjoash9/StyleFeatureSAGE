@@ -321,13 +321,15 @@ def print_metrics(global_step, metrics_dict, prefix):
 
 def parse_and_log_images(opts, logger, global_step, id_logs, x, y, y_hat, title, subscript=None, display_count=2):
     im_data = []
-    for i in range(display_count):
+    batch_size = x.size(0)
+        
+    for i in range(min(display_count, batch_size)):  # never go out of bounds
         cur_im_data = {
             'input_face': common.log_input_image(x[i], opts),
             'target_face': common.tensor2im(y[i]),
             'output_face': common.tensor2im(y_hat[i]),
         }
-        if id_logs is not None:
+        if id_logs is not None and i < len(id_logs):
             for key in id_logs[i]:
                 cur_im_data[key] = id_logs[i][key]
         im_data.append(cur_im_data)

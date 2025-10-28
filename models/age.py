@@ -13,6 +13,18 @@ from models.encoders import psp_encoders
 from models.stylegan2.model import Generator
 
 
+# Wrapper for StyleFeatureEditor Inverter to output only latents
+class InverterWrapper(nn.Module):
+    def __init__(self, inverter):
+        super(InverterWrapper, self).__init__()
+        self.inverter = inverter
+        
+    def forward(self, x):
+        # Inverter outputs (latents, features), we only need latents
+        latents, _ = self.inverter.fs_backbone(x)
+        return latents
+
+
 
 
 class EqualLinear(nn.Module):
@@ -110,7 +122,9 @@ class AGE(nn.Module):
 				new_state_dict[name] = v
 			ckpt['state_dict'] = new_state_dict
 			self.ax.load_state_dict(get_keys(ckpt, 'ax'), strict=True)
-			self.encoder.load_state_dict(get_keys(ckpt, 'encoder'), strict=True)
+			# Only load encoder weights if not using StyleFeatureEditor Inverter
+			if getattr(self.opts, 'encoder_type', '') != 'Inverter':
+				self.encoder.load_state_dict(get_keys(ckpt, 'encoder'), strict=True)
 			self.decoder.load_state_dict(get_keys(ckpt, 'decoder'), strict=True)
 			self.__load_latent_avg(ckpt)
 		else:
@@ -126,7 +140,9 @@ class AGE(nn.Module):
 				name = k.replace('.module','') 
 				new_state_dict[name] = v
 			ckpt['state_dict'] = new_state_dict
-			self.encoder.load_state_dict(get_keys(ckpt, 'encoder'), strict=True)
+			# Skip loading pSp encoder weights when using StyleFeatureEditor Inverter
+			if getattr(self.opts, 'encoder_type', '') != 'Inverter':
+				self.encoder.load_state_dict(get_keys(ckpt, 'encoder'), strict=True)
 			self.decoder.load_state_dict(get_keys(ckpt, 'decoder'), strict=True)
 			self.__load_latent_avg(ckpt)
 
