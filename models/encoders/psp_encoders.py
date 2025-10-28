@@ -21,8 +21,32 @@ class FSLikeBackbone(nn.Module):
         super(FSLikeBackbone, self).__init__()
 
         resnet50 = iresnet50()
-        if hasattr(opts, 'arcface_model_path') and opts.arcface_model_path is not None:
-            resnet50.load_state_dict(torch.load(opts.arcface_model_path))
+        # Load ArcFace backbone weights from file if provided, otherwise try well-known URLs.
+        try:
+            if hasattr(opts, 'arcface_model_path') and opts.arcface_model_path:
+                resnet50.load_state_dict(torch.load(opts.arcface_model_path, map_location='cpu'))
+            else:
+                try:
+                    from torch.hub import load_state_dict_from_url
+                except Exception:
+                    load_state_dict_from_url = None
+                loaded = False
+                if load_state_dict_from_url is not None:
+                    candidate_urls = [
+                        'https://sota.nizhib.ai/pytorch-insightface/iresnet50-7f187506.pth',
+                    ]
+                    for url in candidate_urls:
+                        try:
+                            state = load_state_dict_from_url(url, map_location='cpu')
+                            resnet50.load_state_dict(state)
+                            loaded = True
+                            break
+                        except Exception:
+                            continue
+                if not loaded:
+                    print('⚠️ ArcFace weights not provided and auto-download failed; proceeding with randomly initialized iresnet50. Outputs may be unstable.')
+        except Exception:
+            print('⚠️ Failed to load ArcFace weights; proceeding with randomly initialized iresnet50. Outputs may be unstable.')
 
         self.conv = nn.Sequential(*list(resnet50.children())[:3])
 
