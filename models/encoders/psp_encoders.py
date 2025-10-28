@@ -4,7 +4,7 @@ import torch.nn.functional as F
 from torch import nn
 from torch.nn import Linear, Conv2d, BatchNorm2d, PReLU, Sequential, Module
 
-from models.encoders.helpers import get_blocks, Flatten, bottleneck_IR, bottleneck_IR_SE, _upsample_add
+from models.encoders.helpers import get_blocks, Flatten, bottleneck_IR, bottleneck_IR_SE
 from models.encoders.feature_resnet import iresnet50
 from models.stylegan2.model import EqualLinear
 
