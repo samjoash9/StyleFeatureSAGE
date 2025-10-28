@@ -131,22 +131,26 @@ class AGE(nn.Module):
 			self.decoder.load_state_dict(get_keys(ckpt, 'decoder'), strict=True)
 			self.__load_latent_avg(ckpt)
 		else:
+			# Determine which checkpoint to use for decoder (generator)
+			decoder_ckpt_path = getattr(self.opts, 'generator_checkpoint_path', None) or self.opts.psp_checkpoint_path
 			if dist.is_initialized():
 				if dist.get_rank()==0:
-					print('Loading pSp from checkpoint: {}'.format(self.opts.psp_checkpoint_path))
+					print('Loading generator from checkpoint: {}'.format(decoder_ckpt_path))
 			else:
-				print('Loading pSp from checkpoint: {}'.format(self.opts.psp_checkpoint_path))
-			ckpt = torch.load(self.opts.psp_checkpoint_path, map_location=torch.device('cpu'))
+				print('Loading generator from checkpoint: {}'.format(decoder_ckpt_path))
+			ckpt = torch.load(decoder_ckpt_path, map_location=torch.device('cpu'))
 			from collections import OrderedDict
 			new_state_dict = OrderedDict()
 			for k, v in ckpt['state_dict'].items():
 				name = k.replace('.module','') 
 				new_state_dict[name] = v
 			ckpt['state_dict'] = new_state_dict
-			# Skip loading pSp encoder weights when using StyleFeatureEditor Inverter
-			if getattr(self.opts, 'encoder_type', '') != 'Inverter':
+			# Skip loading encoder weights when using StyleFeatureEditor Inverter
+			if getattr(self.opts, 'encoder_type', '') != 'Inverter' and 'encoder' in ckpt['state_dict']:
 				self.encoder.load_state_dict(get_keys(ckpt, 'encoder'), strict=True)
-			self.decoder.load_state_dict(get_keys(ckpt, 'decoder'), strict=True)
+			# Load decoder weights if present
+			if 'decoder' in ckpt['state_dict']:
+				self.decoder.load_state_dict(get_keys(ckpt, 'decoder'), strict=True)
 			self.__load_latent_avg(ckpt)
 
 	def forward(self, x, av_codes, resize=True, latent_mask=None, input_code=False, randomize_noise=True,

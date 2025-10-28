@@ -31,6 +31,7 @@ class TrainOptions:
 
 		self.parser.add_argument('--class_embedding_path', default=None, type=str, help='path to class embedding')
 		self.parser.add_argument('--psp_checkpoint_path', default=None, type=str, help='Path to pretrained pSp model checkpoint')
+		self.parser.add_argument('--generator_checkpoint_path', default=None, type=str, help='Path to pretrained StyleGAN2/pSp generator checkpoint (decoder)')
 		self.parser.add_argument('--checkpoint_path', default=None, type=str, help='Path to AGE model checkpoint')
 
 		self.parser.add_argument('--l2_lambda', default=1.0, type=float, help='L2 loss multiplier factor')
