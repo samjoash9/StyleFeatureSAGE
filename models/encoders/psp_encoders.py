@@ -23,67 +23,8 @@ class FSLikeBackbone(nn.Module):
 
         resnet50 = iresnet50()
         # Load ArcFace backbone weights from file if provided, otherwise try multiple mirrors and cache.
-        try:
-            # 1) Explicit path
-            if hasattr(opts, 'arcface_model_path') and opts.arcface_model_path and os.path.isfile(opts.arcface_model_path):
-                resnet50.load_state_dict(torch.load(opts.arcface_model_path, map_location='cpu'))
-            else:
-                loaded = False
-                # 2) Torch hub URL (may obey SSL)
-                try:
-                    from torch.hub import load_state_dict_from_url
-                except Exception:
-                    load_state_dict_from_url = None
-                if load_state_dict_from_url is not None and not loaded:
-                    hub_urls = [
-                        'https://sota.nizhib.ai/pytorch-insightface/iresnet50-7f187506.pth',
-                    ]
-                    for url in hub_urls:
-                        try:
-                            state = load_state_dict_from_url(url, map_location='cpu')
-                            resnet50.load_state_dict(state)
-                            loaded = True
-                            break
-                        except Exception:
-                            continue
-                # 3) Direct requests with SSL disabled, cached locally
-                if not loaded:
-                    try:
-                        import requests
-                        cache_dir = os.path.join(os.path.expanduser('~'), '.cache', 'arcface')
-                        os.makedirs(cache_dir, exist_ok=True)
-                        cache_path = os.path.join(cache_dir, 'iresnet50-7f187506.pth')
-                        candidate_urls = [
-                            'https://sota.nizhib.ai/pytorch-insightface/iresnet50-7f187506.pth',
-                            'https://github.com/deepinsight/insightface/releases/download/v2.0.2/iresnet50-7f187506.pth',
-                        ]
-                        if not os.path.isfile(cache_path) or os.path.getsize(cache_path) < 1024 * 1024:
-                            for url in candidate_urls:
-                                try:
-                                    resp = requests.get(url, timeout=60, verify=False, stream=True)
-                                    if resp.status_code == 200:
-                                        with open(cache_path, 'wb') as f:
-                                            for chunk in resp.iter_content(chunk_size=8192):
-                                                if chunk:
-                                                    f.write(chunk)
-                                        if os.path.getsize(cache_path) >= 1024 * 1024:
-                                            break
-                                except Exception:
-                                    continue
-                        if os.path.isfile(cache_path) and os.path.getsize(cache_path) >= 1024 * 1024:
-                            state = torch.load(cache_path, map_location='cpu')
-                            # Some checkpoints wrap under 'state_dict'
-                            if isinstance(state, dict) and 'state_dict' in state:
-                                state = state['state_dict']
-                            resnet50.load_state_dict(state)
-                            loaded = True
-                    except Exception:
-                        loaded = False
-                if not loaded:
-                    print('⚠️ ArcFace weights not provided and auto-download failed; proceeding with randomly initialized iresnet50. Outputs may be unstable.')
-        except Exception:
-            print('⚠️ Failed to load ArcFace weights; proceeding with randomly initialized iresnet50. Outputs may be unstable.')
-
+        resnet50.load_state_dict(torch.load(opts.arcface_model_path))
+        
         self.conv = nn.Sequential(*list(resnet50.children())[:3])
 
         # define layers

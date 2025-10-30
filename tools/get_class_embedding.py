@@ -42,6 +42,8 @@ def run():
     if 'encoder_type' not in opts or opts['encoder_type'] is None:
         opts['encoder_type'] = 'Inverter'
     # Ensure device is set (AGE expects opts.device)
+    if 'arcface_model_path' not in opts:
+        opts['arcface_model_path'] = 'pretrained_models/'
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     opts['device'] = device
     opts = Namespace(**opts)
