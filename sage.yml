@@ -1,0 +1,5 @@
+name: pytroch1.10
+channels:
+  - conda-forge
+  - defaults
+prefix: /home/VM04/anaconda3/envs/pytroch1.10

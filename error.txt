@@ -1,0 +1,140 @@
+(base) VM04@ICTCHPC00-VM04:~/Thesis/Rework/FeatureSAGE--Stable-Attribute-Group-Editing-With-Style-Feature-Editor$ source /home/VM04/anaconda3/bin/activate featureSage
+(featureSage) VM04@ICTCHPC00-VM04:~/Thesis/Rework/FeatureSAGE--Stable-Attribute-Group-Editing-With-Style-Feature-Editor$ python tools/train.py \
+--dataset_type=vgg_encode  \
+--exp_dir=experiment/vgg_face_03 \
+--workers=4 \
+--batch_size=8 \
+--valid_batch_size=8 \
+--valid_workers=4 \
+--val_interval=100 \
+--save_interval=500 \
+--start_from_latent_avg \
+--learn_in_w \
+--l2_lambda=1.0 \
+--sparse_lambda=0.005 \
+--orthogonal_lambda=0.0005 \
+--A_length=100 \
+--fse_checkpoint_path=pretrained_models/vgg_face_editor.pt \
+--max_steps=1500050 \\=class_embeddings/vgg_face/class_embeddings.pt \
+/home/VM04/anaconda3/envs/featureSage/lib/python3.10/site-packages/torch/utils/cpp_extension.py:1964: UserWarning: TORCH_CUDA_ARCH_LIST is not set, all archs for visible cards are included for compilation. 
+If this is not desired, please set os.environ['TORCH_CUDA_ARCH_LIST'].
+  warnings.warn(
+/home/VM04/anaconda3/envs/featureSage/lib/python3.10/site-packages/torch/utils/cpp_extension.py:1964: UserWarning: TORCH_CUDA_ARCH_LIST is not set, all archs for visible cards are included for compilation. 
+If this is not desired, please set os.environ['TORCH_CUDA_ARCH_LIST'].
+  warnings.warn(
+{'A_length': 100,
+ 'apply_feature_editing': True,
+ 'arcface_model_path': None,
+ 'batch_size': 8,
+ 'board_interval': 50,
+ 'checkpoint_path': None,
+ 'class_embedding_path': 'class_embeddings/vgg_face/class_embeddings.pt',
+ 'dataset_type': 'vgg_encode',
+ 'device': device(type='cuda'),
+ 'encoder_type': 'GradualStyleEncoder',
+ 'exp_dir': 'experiment/vgg_face_03',
+ 'feature_scale': 1.0,
+ 'feature_scale_schedule': True,
+ 'feature_scale_warmup': 10000,
+ 'freeze_fse_encoder': True,
+ 'fse_checkpoint_path': 'pretrained_models/vgg_face_editor.pt',
+ 'fse_inverter_path': 'pretrained_models/vgg_final_inverter.pt',
+ 'generator_checkpoint_path': None,
+ 'image_interval': 100,
+ 'input_nc': 3,
+ 'l2_lambda': 1.0,
+ 'label_nc': 0,
+ 'learn_in_w': True,
+ 'learning_rate': 0.0001,
+ 'local_rank': 0,
+ 'lpips_lambda': 1.0,
+ 'max_steps': 15000,
+ 'optim_name': 'ranger',
+ 'orthogonal_lambda': 0.0005,
+ 'output_size': 1024,
+ 'psp_checkpoint_path': None,
+ 'save_interval': 500,
+ 'sparse_lambda': 0.005,
+ 'start_from_latent_avg': True,
+ 'train_decoder': False,
+ 'train_feature_editor': True,
+ 'use_fse_encoder': True,
+ 'use_fse_full': True,
+ 'val_interval': 100,
+ 'valid_batch_size': 8,
+ 'valid_workers': 4,
+ 'workers': 4}
+/home/VM04/Thesis/Rework/FeatureSAGE--Stable-Attribute-Group-Editing-With-Style-Feature-Editor/./models/sfe_psp/encoders/psp_encoders.py:34: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  resnet50.load_state_dict(torch.load(opts.arcface_model_path))
+Loading default Discriminator from  pretrained_models/stylegan2-ffhq-config-f.pkl
+Loading from checkpoint: pretrained_models/vgg_face_editor.pt
+/home/VM04/Thesis/Rework/FeatureSAGE--Stable-Attribute-Group-Editing-With-Style-Feature-Editor/./models/sfe.py:68: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  ckpt = torch.load(self.opts.checkpoint_path, map_location="cpu")
+Loading Decoder from pretrained_models/stylegan2-ffhq-config-f.pt
+/home/VM04/Thesis/Rework/FeatureSAGE--Stable-Attribute-Group-Editing-With-Style-Feature-Editor/./models/sfe.py:82: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  ckpt = torch.load(self.opts.stylegan_weights)
+Loading E4E from pretrained_models/e4e_ffhq_encode.pt
+/home/VM04/Thesis/Rework/FeatureSAGE--Stable-Attribute-Group-Editing-With-Style-Feature-Editor/./models/sfe.py:89: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  ckpt = torch.load(self.opts.e4e_path, map_location="cpu")
+Using FSEInverter with checkpoint: pretrained_models/vgg_face_editor.pt
+/home/VM04/Thesis/Rework/FeatureSAGE--Stable-Attribute-Group-Editing-With-Style-Feature-Editor/./datasets/images_dataset.py:14: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  self.average_codes = torch.load(opts.class_embedding_path, map_location=torch.device("cpu"))
+Number of training samples: 126545
+Number of valid samples: 31857
+/home/VM04/anaconda3/envs/featureSage/lib/python3.10/site-packages/torchvision/models/_utils.py:135: UserWarning: Using 'weights' as positional parameter(s) is deprecated since 0.13 and may be removed in the future. Please use keyword parameter(s) instead.
+  warnings.warn(
+/home/VM04/anaconda3/envs/featureSage/lib/python3.10/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=VGG16_Weights.IMAGENET1K_V1`. You can also use `weights=VGG16_Weights.DEFAULT` to get the most up-to-date weights.
+  warnings.warn(msg)
+/home/VM04/Thesis/Rework/FeatureSAGE--Stable-Attribute-Group-Editing-With-Style-Feature-Editor/./criteria/orthogonal_loss.py:10: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  self.B = torch.stack(list(torch.load(B_path, map_location=opts.device).values())).permute(1,2,0)[:6]
+/home/VM04/Thesis/Rework/FeatureSAGE--Stable-Attribute-Group-Editing-With-Style-Feature-Editor/./optimizer/ranger.py:123: UserWarning: This overload of addcmul_ is deprecated:
+        addcmul_(Number value, Tensor tensor1, Tensor tensor2)
+Consider using one of the following signatures instead:
+        addcmul_(Tensor tensor1, Tensor tensor2, *, Number value = 1) (Triggered internally at ../torch/csrc/utils/python_arg_parser.cpp:1642.)
+  exp_avg_sq.mul_(beta2).addcmul_(1 - beta2, grad, grad)
+Metrics for train, step 0
+        loss_l2 = 0.1377839893102646
+        loss_lpips = 0.5539133548736572
+        loss_orthogonal = 41.591590881347656
+        loss_sparse = 13.694076538085938
+        loss = 0.7809635400772095
+Metrics for train, step 50
+        loss_l2 = 0.1170303076505661
+        loss_lpips = 0.5605124831199646
+        loss_orthogonal = 41.58543014526367
+        loss_sparse = 13.695371627807617
+        loss = 0.7668123841285706
+Metrics for train, step 100
+        loss_l2 = 0.11255528032779694
+        loss_lpips = 0.5788669586181641
+        loss_orthogonal = 41.56753158569336
+        loss_sparse = 13.697489738464355
+        loss = 0.7806934714317322
+        Traceback (most recent call last):
+  File "/home/VM04/Thesis/Rework/FeatureSAGE--Stable-Attribute-Group-Editing-With-Style-Feature-Editor/tools/train.py", line 291, in <module>
+    train()
+  File "/home/VM04/Thesis/Rework/FeatureSAGE--Stable-Attribute-Group-Editing-With-Style-Feature-Editor/tools/train.py", line 147, in train
+    val_loss_dict = validate(opts, net, orthogonal_loss_fn, sparse_loss_fn, lpips_loss, valid_loader, device, global_step, logger)
+  File "/home/VM04/Thesis/Rework/FeatureSAGE--Stable-Attribute-Group-Editing-With-Style-Feature-Editor/tools/train.py", line 168, in validate
+    for batch_idx, batch in enumerate(valid_loader):
+  File "/home/VM04/anaconda3/envs/featureSage/lib/python3.10/site-packages/torch/utils/data/dataloader.py", line 701, in __next__
+    data = self._next_data()
+  File "/home/VM04/anaconda3/envs/featureSage/lib/python3.10/site-packages/torch/utils/data/dataloader.py", line 1465, in _next_data
+    return self._process_data(data)
+  File "/home/VM04/anaconda3/envs/featureSage/lib/python3.10/site-packages/torch/utils/data/dataloader.py", line 1491, in _process_data
+    data.reraise()
+  File "/home/VM04/anaconda3/envs/featureSage/lib/python3.10/site-packages/torch/_utils.py", line 715, in reraise
+    raise exception
+KeyError: Caught KeyError in DataLoader worker process 3.
+Original Traceback (most recent call last):
+  File "/home/VM04/anaconda3/envs/featureSage/lib/python3.10/site-packages/torch/utils/data/_utils/worker.py", line 351, in _worker_loop
+    data = fetcher.fetch(index)  # type: ignore[possibly-undefined]
+  File "/home/VM04/anaconda3/envs/featureSage/lib/python3.10/site-packages/torch/utils/data/_utils/fetch.py", line 52, in fetch
+    data = [self.dataset[idx] for idx in possibly_batched_index]
+  File "/home/VM04/anaconda3/envs/featureSage/lib/python3.10/site-packages/torch/utils/data/_utils/fetch.py", line 52, in <listcomp>
+    data = [self.dataset[idx] for idx in possibly_batched_index]
+  File "/home/VM04/Thesis/Rework/FeatureSAGE--Stable-Attribute-Group-Editing-With-Style-Feature-Editor/./datasets/images_dataset.py", line 35, in __getitem__
+    return from_im, to_im, self.average_codes[cate]
+KeyError: '0764'
+
+(featureSage) VM04@ICTCHPC00-VM04:~/Thesis/Rework/FeatureSAGE--Stable-Attribute-Group-Editing-With-Style-Feature-Editor$ ^C
